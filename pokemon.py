@@ -2,8 +2,10 @@ from classes import Battle, Player, Move, Pokemon
 import requests
 
 def main():
+    # create an empty list of pokemons
     team1 = []
 
+    # get the pichu info and set its moves for tests
     pokemon1info = requests.get("https://pokeapi.co/api/v2/pokemon/pichu").json()
     moves = {}
     move1info = requests.get("https://pokeapi.co/api/v2/move/84").json()
@@ -16,13 +18,18 @@ def main():
     moves[move4info["name"]] = Move(move4info)
     level = 30
     pokemon1info.update({"level": level, "current_moves": moves})
+    # creates the pokemon
     pokemon1 = Pokemon(pokemon1info)
+    # append to the list
     team1.append(pokemon1)
 
+    # finally creates the player with the team
     player1 = Player("Sensei", team1)
 
-    print(str(player1))
+    # prints the player's pokemons
+    print(player1.list_pokemons("stats"))
 
+    # do the same thing but with charmander to the second player
     team2 = []
 
     pokemon2info = requests.get("https://pokeapi.co/api/v2/pokemon/charmander").json()
@@ -41,9 +48,9 @@ def main():
     team2.append(pokemon2)
 
     player2 = Player("Lefty", team2)
+    print(player2.list_pokemons("battle"))
 
-    print(str(player2))
-
+    # calls a battle and associates it to a variable
     battle = Battle.start_battle(player1, player2)
 
 if __name__ == "__main__":

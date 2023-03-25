@@ -1,24 +1,30 @@
 import requests
 import random
+import time
 
 class Battle:
     def __init__(self, player1, player2):
         self.turns = 0
         self.player1 = player1
         self.player2 = player2
+        self.winner = None
+        self.loser = None
+        self.targets = Battle.setTargets()
+        self.in_progress = True
 
     # Simulates a 1x1 battle
     def battle(self):
         # a loop that will end only when a pokemon faint
-        while True:
+        while self.in_progress:
             # defines a queue sorted by speed
-            self.queue = sorted([self.player1, self.player2], reverse=True, key=lambda player: player.getActivePokemon().speed)
+            self.queue = sorted([self.player1, self.player2], reverse=True, key=lambda player: player.getActivePokemon().getSpeed("current"))
 
             # gets what the players want to do
             self.player1.setAction()
             self.player2.setAction()
+            time.sleep(1)
             # check if some move has priority
-            self.setMovePriority()
+            self.setActionPriority()
 
             # starts the queue
             for current_player in self.queue:
@@ -30,16 +36,21 @@ class Battle:
                     other_player = self.player2
                 else:
                     other_player = self.player1
-                self.execute_action(current_player, other_player)
 
-                # checks if there are any fainted pokemons
-                if fainted_pokemons:= self.check_lives():
-                    for p in fainted_pokemons:
-                        print(f"{p['pokemon'].getName()} has fainted!")
-                        self.switch_pokemon(p["player"])
+                self.execute_action(current_player, other_player)
+                self.show_pokemons()
+                time.sleep(2)
+
+                # checks the pokemon lives and if there is a winner
+                if self.check_winner():
+                    self.in_progress = False
+                    time.sleep(1)
+                    print(f"{self.loser.nickname} is out of pokemons..")
+                    print(f"{self.winner.nickname} is the winner!")
+                    break
 
     # check if the player's action has priority
-    def setMovePriority(self):
+    def setActionPriority(self):
         if Move.isMove(self.player1.action) and Move.isMove(self.player2.action):
             move1p = self.player1.getActivePokemon().moves[self.player1.action].getPriority()
             move2p = self.player2.getActivePokemon().moves[self.player2.action].getPriority()
@@ -53,6 +64,14 @@ class Battle:
         if Move.isMove(self.player2.action):
             if self.player2.getActivePokemon().moves[self.player2.action].getPriority() == 1:
                 self.queue = [self.player2, self.player1]
+
+        # checks if the player wants to change their pokemon
+        if self.player1.action == "pokemons" and self.player2.action == "pokemons":
+            return
+        elif self.player1.action == "pokemons":
+            self.queue = [self.player1, self.player2]
+        elif self.player2.action == "pokemons":
+            self.queue = [self.player2, self.player1]
         return
 
     # executes the player's action, and calls its respective method
@@ -61,37 +80,85 @@ class Battle:
         moves = player.getActivePokemon().getMoves()
         for move in moves:
             if move.name == action:
-                return self.execute_move(move)
+                player.action = move
+                time.sleep(1)
+                print(f"{player.getActivePokemon().getName()} used {player.action.name}..")
+                Move.execute_move(player.action, player.getActivePokemon(), other_player.getActivePokemon())
+                return
         match action:
-            case "leave":
-                self.leave()
-            case "pokemon":
-                player.list_pokemons()
+            case "pokemons":
+                print(player.list_pokemons("battle"))
             case "bag":
                 player.list_bag()
 
+    # checks if the pokemons are still alive and switches the player active pokemon, or returns a winner if there is no more alive pokemons in the team
+    def check_winner(self):
+        current_player = self.queue[0]
+        other_player = self.queue[1]
 
-    def execute_move(self, move):
-        ...
+        if current_player.getActivePokemon().getHealth("current") <= 0:
+            time.sleep(1)
+            print(f"{current_player.getActivePokemon().getName()} has fainted!")
+            current_player.alive_pokemons -= 1
+            if current_player.alive_pokemons > 0:
+                Battle.switch_pokemon(current_player)
+            else:
+                self.winner = other_player
+                self.loser = current_player
+                return True
+        if other_player.getActivePokemon().getHealth("current") <= 0:
+            time.sleep(1)
+            print(f"{other_player.getActivePokemon().getName()} has fainted!")
+            other_player.alive_pokemons -= 1
+            if other_player.alive_pokemons > 0:
+                Battle.switch_pokemon(other_player)
+            else:
+                self.winner = current_player
+                self.loser = other_player
+                return True
 
-    def leave(self):
-        ...
+    def show_pokemons(self):
+        fstring = ""
+        pokemon1 = self.player1.getActivePokemon()
+        pokemon2 = self.player2.getActivePokemon()
 
-    # checks if the pokemons are still alive
-    def check_lives(self):
-        fainted_pokemons = []
-        if self.player1.getActivePokemon().getHealth(stat="current") <= 0:
-            fainted_pokemons.append({"player": self.player1, "pokemon": self.player1.getActivePokemon()})
-            self.player1.alive_pokemons -= 1
-        if self.player2.getActivePokemon().getHealth(stat="current") <= 0:
-            fainted_pokemons.append({"player": self.player2, "pokemon": self.player2.getActivePokemon()})
-            self.player2.alive_pokemons -= 1
-        return fainted_pokemons
+        table_length = 26
+        space_between = " " * 5
+        div = ("-" * table_length) + space_between + ("-" * table_length) + "\n"
+        fstring = ""
+
+        fstring += div
+        fstring += f"| {pokemon1}{' ' * (table_length - len(str(pokemon1)) - 3)}|" + space_between + f"| {pokemon2}{' ' * (table_length - len(str(pokemon2)) - 3)}|\n"
+        lifebar1 = round(20 * pokemon1.getHealth(stat="current") / pokemon1.getHealth())
+        lifebar2 = round(20 * pokemon2.getHealth(stat="current") / pokemon2.getHealth())
+        fstring += f"| [{'=' * lifebar1}{' ' * (20 - lifebar1)}] |" + space_between + f"| [{'=' * lifebar2}{' ' * (20 - lifebar2)}] |\n"
+        hp1 = f"HP: {pokemon1.getHealth(stat='current')}/{pokemon1.getHealth()}"
+        hp2 = f"HP: {pokemon2.getHealth(stat='current')}/{pokemon2.getHealth()}"
+        fstring += f"| {hp1}{' ' * (table_length - len(hp1) - 3)}|" + space_between + f"| {hp2}{' ' * (table_length - len(hp2) - 3)}|\n"
+
+        fstring += div
+        print(fstring)
+
+    @classmethod
+    def setTargets(cls):
+        targets = []
+        for i in range(1, 17):
+            targets.append(requests.get("https://pokeapi.co/api/v2/move-target/" + str(i)).json())
+        return targets
 
     # switches the player's pokemon
-    def switch_pokemon(self, player):
-        ...
-
+    @classmethod
+    def switch_pokemon(cls, player):
+        time.sleep(1)
+        print(f"{player.nickname}'s pokemons:")
+        print(player.list_pokemons("battle"))
+        while True:
+            pokemon_name = input("Select the pokemon.. ")
+            for pokemon in player.pokemons:
+                if pokemon_name == pokemon.name:
+                    player.active_pokemon = pokemon
+                    break
+            print("Invalid pokemon")
 
     @classmethod
     def start_battle(cls, player1, player2):
@@ -107,7 +174,7 @@ class Player:
             raise ValueError
 
         self.pokemons = pokemons
-        self.active_pokemon = 0
+        self.active_pokemon = self.pokemons[0]
         self.alive_pokemons = len(self.pokemons)
         self.nickname = nickname
         self.bag = bag
@@ -176,15 +243,18 @@ class Player:
         fstring += div
         return fstring
 
+    def list_bag(self):
+        ...
+
     # gets the player's active pokemon
     def getActivePokemon(self):
-        return self.pokemons[self.active_pokemon]
+        return self.active_pokemon
 
     # method responsible for checking the users input and set the player's action, if it's valid
     def setAction(self):
         while True:
-            actions = ["leave", "bag", "pokemons"] + self.getActivePokemon().getMoves(str=True)
-            action = input(f"What to do now, {self.nickname}?.. ")
+            actions = ["bag", "pokemons"] + self.getActivePokemon().getMoves(str=True)
+            action = input(f"What to do now, {self.nickname}?.. ").lower()
             if action not in actions:
                 print("Invalid action")
                 continue
@@ -215,14 +285,16 @@ class Pokemon:
     def __init__(self, pokemoninfo):
         self.properties = pokemoninfo
         self.name = self.properties["name"]
+        self.types = self.setTypes(self.properties["types"])
         self.level = int(self.properties["level"])
         self.moves = self.properties["current_moves"]
-        self.health = Stat.setStat(self.properties["stats"][0], self.level)
-        self.attack = Stat.setStat(self.properties["stats"][1], self.level)
-        self.defense = Stat.setStat(self.properties["stats"][2], self.level)
-        self.special_attack = Stat.setStat(self.properties["stats"][3], self.level)
-        self.special_defense = Stat.setStat(self.properties["stats"][4], self.level)
-        self.speed = Stat.setStat(self.properties["stats"][5], self.level)
+        # Pokemon's stats
+        self.stats = Pokemon.defineStats(pokemoninfo, self.level)
+        # Pokemon's type relations
+        self.damage_relations = Type.setDamageRelations(self.types)
+        self.crit_chance = 0.0625
+        self.evasiveness = 1
+        self.accuracy = 1
 
     def __str__(self):
         return f"Lvl {self.level} - {self.getName()}"
@@ -233,42 +305,54 @@ class Pokemon:
     # gets the current, or full stats of the pokemon
     def getHealth(self, stat=""):
         if stat == "current":
-            return self.health.current_stat
+            return self.stats["hp"].current_stat
         else:
-            return self.health.stat
+            return self.stats["hp"].stat
 
     def getAttack(self, stat=""):
         if stat == "current":
-            return self.attack.current_stat
+            return self.stats["attack"].current_stat
         else:
-            return self.attack.stat
+            return self.stats["attack"].stat
 
     def getDefense(self, stat=""):
         if stat == "current":
-            return self.defense.current_stat
+            return self.stats["defense"].current_stat
         else:
-            return self.defense.stat
+            return self.stats["defense"].stat
 
-    def getSpecial_attack(self, stat=""):
+    def getSpecialAttack(self, stat=""):
         if stat == "current":
-            return self.special_attack.current_stat
+            return self.stats["special-attack"].current_stat
         else:
-            return self.special_attack.stat
+            return self.stats["special-attack"].stat
 
-    def getSpecial_defense(self, stat=""):
+    def getSpecialDefense(self, stat=""):
         if stat == "current":
-            return self.special_defense.current_stat
+            return self.stats["special-defense"].current_stat
         else:
-            return self.special_defense.stat
+            return self.stats["special-defense"].stat
 
     def getSpeed(self, stat=""):
         if stat == "current":
-            return self.speed.current_stat
+            return self.stats["speed"].current_stat
         else:
-            return self.speed.stat
+            return self.stats["speed"].stat
+
+    def getCritChance(self):
+        return self.crit_chance
+
+    def getAccuracy(self):
+        return self.accuracy
+
+    def getEvasiveness(self):
+        return self.evasiveness
 
     def getName(self):
         return f"{self.name.title()}"
+
+    def getTypes(self):
+        return self.types
 
     # gets the current moves of the pokemon
     def getMoves(self, str=False):
@@ -282,6 +366,32 @@ class Pokemon:
             for move in self.moves:
                 moves.append(self.moves[move])
         return moves
+
+    def getMoveByName(self, name):
+        for move in self.moves:
+            if move.name == name:
+                return move
+
+    def setTypes(self, types):
+        object_types = []
+        for type in types:
+            object_types.append(Type.create_type(type["type"]["name"]))
+        return object_types
+
+    def decreaseHealth(self, damage_given):
+        self.stats["hp"].current_stat -= damage_given
+        if self.getHealth("current") < 0:
+            self.stats["hp"].current_stat = 0
+
+    @classmethod
+    def defineStats(cls, pokemoninfo, pokemonlevel):
+        stats = {}
+        for stat in pokemoninfo["stats"]:
+            stats[stat["stat"]["name"]] = Stat.setStat(stat, pokemonlevel)
+        for stat in ["accuracy", "evasion"]:
+            statinfo = {"base_stat": 1, "effort": 0, "stat": {"name": stat, "url": f"https://pokeapi.co/api/v2/stat/{stat}"}}
+            stats[stat] = Stat.setStat(statinfo, pokemonlevel)
+        return stats
 
     # Creates a pokemon
     @classmethod
@@ -354,6 +464,7 @@ class Stat:
         self.iv = random.randint(0,31)
         self.ev = stat_info["effort"]
         self.stat = stat
+        self.stat_level = 0
         self.current_stat = stat
 
     def __lt__(self, other):
@@ -361,6 +472,39 @@ class Stat:
 
     def __eq__(self, other):
         return self.stat == other.stat
+
+    def getName(self):
+        return self.name
+
+    def getBaseStat(self):
+        return self.base_stat
+
+    def getIV(self):
+        return self.iv
+
+    def getEV(self):
+        return self.ev
+
+    def getStat(self):
+        return self.stat
+
+    def getCurrentStat(self):
+        return self.current_stat
+
+    def change_stat(self, level):
+        negative_stat_level_table = {
+            -6: 0.25,
+            -5: 0.29,
+            -4: 0.33,
+            -3: 0.40,
+            -2: 0.50,
+            -1: 0.66
+        }
+        self.stat_level += level
+        if self.stat_level >= 0:
+            self.current_stat *= (1 + self.stat_level / 2)
+        else:
+            self.current_stat *= negative_stat_level_table[self.stat_level]
 
     # sets the EV points of the current stat, and check if it's valid
     @classmethod
@@ -382,22 +526,167 @@ class Stat:
         ev = stat_info["effort"]
         if stat_info["stat"]["name"] == "hp":
             stat = round(((((2 * base_stat) + iv + (ev/4)) * level) / 100) + level + 10)
+        elif stat_info["stat"]["name"] in ["accuracy", "evasion"]:
+            stat = base_stat
         else:
             stat = round((((((2 * base_stat) + iv + (ev/4)) * level) / 100) + 5))
         # returns the stat object
         return cls(stat_info, stat)
 
 
+class Type:
+    def __init__(self, typeinfo):
+        self.properties = typeinfo
+        self.name = self.properties["name"]
+
+    def __eq__(self, other):
+        return self.name == other.name
+
+    @classmethod
+    def setDamageRelations(cls, type_objects):
+        dict = {}
+        dict["double_damage_from"] = []
+        dict["half_damage_from"] = []
+        dict["no_damage_from"] = []
+
+        for type_object in type_objects:
+            for key in type_object.properties["damage_relations"]:
+                if key in ["double_damage_from", "half_damage_from", "no_damage_from"]:
+                    for type in type_object.properties["damage_relations"][key]:
+                        dict[key].append(type["name"])
+        return dict
+
+    @classmethod
+    def check_effectiveness(cls, move, other_pokemon):
+        for key in other_pokemon.damage_relations:
+            if move.type.name in other_pokemon.damage_relations[key]:
+                if key == "double_damage_from":
+                    return 2
+                elif key == "half_damage_from":
+                    return 0.5
+                elif key == "no_damage_from":
+                    return 0
+        return 1
+
+    @classmethod
+    def create_type(cls, type):
+        if response:= requests.get("https://pokeapi.co/api/v2/type/" + type):
+            return cls(response.json())
+
+
 class Move:
     def __init__(self, moveinfo):
         self.properties = moveinfo
         self.name = self.properties["name"]
+        self.type = Type.create_type(self.properties["type"]["name"])
+        self.damage_class = self.properties["damage_class"]["name"]
+        self.effect = Move.setEffectInfo(self.properties)
+        self.power = self.properties["power"]
+        self.pp = self.properties["pp"]
+        self.accuracy = self.properties["accuracy"]
 
     def __str__(self):
         return self.name
 
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def apply_effects(self, pokemon):
+        ...
+
     def getPriority(self):
         return self.properties["priority"]
+
+    def getName(self):
+        return self.name
+
+    def getType(self):
+        return self.type
+
+    def getDamageClass(self):
+        return self.damage_class
+
+    def getPower(self):
+        return self.power
+
+    def getPP(self):
+        return self.pp
+
+    def getAccuracy(self):
+        return self.accuracy
+
+    def decreasePP(self, pp):
+        self.pp -= pp
+
+    @classmethod
+    def setEffectInfo(cls, moveinfo):
+        dict = {"effect_chance": moveinfo["meta"]["ailment_chance"], "effect": moveinfo["meta"]["ailment"]["name"], "stat_change_chance": moveinfo["meta"]["stat_chance"], "stat_changes": moveinfo["stat_changes"]}
+        list = []
+        for change in moveinfo["stat_changes"]:
+            change["stat"] = change["stat"]["name"]
+            list.append(change)
+        dict["stat_changes"] = list
+        if dict["effect_chance"] == 0:
+            dict["effect_chance"] = 100
+        return dict
+
+    @classmethod
+    def execute_move(cls, move, pokemon, other_pokemon):
+        hit_chance = move.getAccuracy() * (pokemon.getAccuracy() / other_pokemon.getEvasiveness())
+        if random.randint(1, 100) > hit_chance:
+            move.decreasePP(1)
+            print(f"{other_pokemon.getName()} avoided the attack!")
+            return False
+        else:
+            move.decreasePP(1)
+            move.apply_effects(other_pokemon)
+            if move.getDamageClass() != "status":
+                damage_summary = Move.calculate_damage(move, pokemon, other_pokemon)
+                if effectiveness:= damage_summary["effectiveness"]:
+                    time.sleep(0.5)
+                    match effectiveness:
+                        case "super-effective":
+                            print("It was super effective!")
+                        case "not-effective":
+                            print("It was not very effective...")
+                        case "does not affect":
+                            print(f"It does not affect {other_pokemon.getName()}...")
+                if damage_summary["critical"]:
+                    time.sleep(1)
+                    print("A critical hit!")
+                other_pokemon.decreaseHealth(damage_summary["damage"])
+                time.sleep(1)
+            return True
+
+    @classmethod
+    def calculate_damage(cls, move, pokemon, other_pokemon):
+        summary = {}
+        effectiveness = Type.check_effectiveness(move, other_pokemon)
+        if effectiveness == 2:
+            summary["effectiveness"] = "super-effective"
+        elif effectiveness == 0.5:
+            summary["effectiveness"] = "not-effective"
+        elif effectiveness == 0:
+            summary["effectiveness"] = "does not affect"
+
+        match move.damage_class:
+            case "physical":
+                atkstat = pokemon.getAttack("current_stat")
+                defstat = pokemon.getDefense("current_stat")
+            case "special":
+                atkstat = pokemon.getSpecialAttack("current_stat")
+                defstat = pokemon.getSpecialDefense("current_stat")
+        stab = 1
+        if move.getType() in pokemon.getTypes():
+            stab = 1.5
+        critical = 1
+        summary["critical"] = False
+        if random.randint(1, 10000) / 10000 <= pokemon.getCritChance():
+            critical = 1.5
+            summary["critical"] = True
+        other = 1
+        summary["damage"] = round(((((2*pokemon.level/5+2)*atkstat*move.power/defstat)/50)+2)*stab*effectiveness*critical*other*(80/100))
+        return summary
 
     # checks if the move exist
     @classmethod

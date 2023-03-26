@@ -99,8 +99,8 @@ class Battle:
         if current_player.getActivePokemon().getHealth("current") <= 0:
             time.sleep(1)
             print(f"{current_player.getActivePokemon().getName()} has fainted!")
-            current_player.alive_pokemons -= 1
-            if current_player.alive_pokemons > 0:
+            current_player.updateAlivePokemonsFromTeam(-1)
+            if current_player.getAlivePokemonsFromTeam() > 0:
                 self.switch_pokemon(current_player)
             else:
                 self.winner = other_player
@@ -109,8 +109,8 @@ class Battle:
         if other_player.getActivePokemon().getHealth("current") <= 0:
             time.sleep(1)
             print(f"{other_player.getActivePokemon().getName()} has fainted!")
-            other_player.alive_pokemons -= 1
-            if other_player.alive_pokemons > 0:
+            other_player.updateAlivePokemonsFromTeam(-1)
+            if other_player.getAlivePokemonsFromTeam() > 0:
                 self.switch_pokemon(other_player)
             else:
                 self.winner = current_player
@@ -147,7 +147,7 @@ class Battle:
         while True:
             if back:
                 action = input("Select the pokemon.. or type 'back' to go back.. ").lower()
-                for pokemon in player.pokemons:
+                for pokemon in player.getPokemonsFromTeam():
                     if action == pokemon.name and pokemon.getHealth("current") > 0:
                         player.active_pokemon = pokemon
                         print(f"{player.nickname} chose {pokemon.getName()}!")
@@ -166,7 +166,7 @@ class Battle:
                     return
             else:
                 pokemon_name = input("Select the pokemon.. ").lower()
-                for pokemon in player.pokemons:
+                for pokemon in player.getPokemonsFromTeam():
                     if pokemon_name == pokemon.name and pokemon.getHealth("current") > 0:
                         player.active_pokemon = pokemon
                         print(f"{player.nickname} chose {pokemon.getName()}!")
@@ -189,14 +189,14 @@ class Battle:
 
 
 class Player:
-    def __init__(self, nickname, pokemons=[], bag=[]):
+    def __init__(self, nickname, teams=[], bag=[]):
         if not nickname:
             print("Insert a nickname")
             raise ValueError
 
-        self.pokemons = pokemons
-        self.active_pokemon = self.pokemons[0]
-        self.alive_pokemons = len(self.pokemons)
+        self.teams = teams
+        self.active_team = self.teams[0]
+        self.active_pokemon = self.getPokemonsFromTeam()[0]
         self.nickname = nickname
         self.bag = bag
 
@@ -215,7 +215,7 @@ class Player:
             div = "-" * table_length + "\n"
             fstring = ""
 
-            for pokemon in self.pokemons:
+            for pokemon in self.getPokemonsFromTeam():
                 hp, atq, df = str(pokemon.getHealth()), str(pokemon.getAttack()), str(pokemon.getDefense())
                 spatq, spdef, spd = str(pokemon.getSpecial_attack()), str(pokemon.getSpecial_defense()), str(pokemon.getSpeed())
                 margin = (table_length - len(str(pokemon)) - 2) // 2
@@ -237,7 +237,7 @@ class Player:
             div = "-" * table_length + "\n"
             fstring = ""
 
-            for pokemon in self.pokemons:
+            for pokemon in self.getPokemonsFromTeam():
                 fstring += div
                 fstring += f"| {pokemon}{' ' * (table_length - len(str(pokemon)) - 3)}|\n"
                 life = round(20 * pokemon.getHealth(stat="current") / pokemon.getHealth())
@@ -251,7 +251,7 @@ class Player:
             # prints a table with just the pokemon's names
             larger_name = 0
             higher_level = 0
-            for pokemon in self.pokemons:
+            for pokemon in self.getPokemonsFromTeam():
                 if len(pokemon.name) > larger_name:
                     larger_name = len(pokemon.name)
                 if pokemon.level > higher_level:
@@ -260,7 +260,7 @@ class Player:
             table_length = larger_name + len(f"Lvl {higher_level}") + 7
             div = "-" * table_length + "\n"
             fstring = div
-            for pokemon in self.pokemons:
+            for pokemon in self.getPokemonsFromTeam():
                 margin_right = larger_name + 1 - len(pokemon.name)
                 fstring += f"| {pokemon}{' ' * margin_right }|\n"
 
@@ -274,6 +274,30 @@ class Player:
     def getActivePokemon(self):
         return self.active_pokemon
 
+    def getAlivePokemonsFromTeam(self, team_name="active"):
+        if team_name == "active":
+            return self.active_team.alive_pokemons
+        else:
+            for team in self.teams:
+                if team.name == team_name:
+                    return team.alive_pokemons
+
+    def getPokemonsFromTeam(self, team_name="active"):
+        if team_name == "active":
+            return self.active_team.pokemons
+        else:
+            for team in self.teams:
+                if team.name == team_name:
+                    return team.pokemons
+
+    def updateAlivePokemonsFromTeam(self, value, team_name="active"):
+        if team_name == "active":
+            self.active_team.alive_pokemons += value
+        else:
+            for team in self.teams:
+                if team.name == team_name:
+                    team.alive_pokemons += value
+
     # method responsible for checking the users input and set the player's action, if it's valid
     def setAction(self):
         while True:
@@ -285,6 +309,24 @@ class Player:
             self.action = action
             break
 
+    def setTeam(self):
+        while True:
+            selected_team = input("Select your team, or 'new' for a new team.. ")
+            for team in self.teams:
+                if selected_team == team.name:
+                    return team
+            if selected_team == "new":
+                while True:
+                    team_name = input("Insert your team's name: ")
+                    if team_name:
+                        for team in self.teams:
+                            if team.name == team_name:
+                                print(f"There's already a team named {team_name}..")
+                                continue
+                        break
+                self.teams.append(Team.create_team(team_name))
+                return
+
     # Creates a new player
     @classmethod
     def create_player(cls):
@@ -292,7 +334,25 @@ class Player:
         while True:
             if nickname:= input("Insert your nickname: "):
                 break
+        teams = []
+        while True:
+            team_name = input("Insert your team's name: ")
+            if team_name:
+                break
+        teams.append(Team.create_team(team_name))
+        bag = []
+        return cls(nickname, teams, bag)
 
+
+
+class Team:
+    def __init__(self, name, pokemons=[]):
+        self.name = name
+        self.pokemons = pokemons
+        self.alive_pokemons = len(self.pokemons)
+
+    @classmethod
+    def create_team(cls, team_name):
         # creates an empty list of pokemons with max length 6
         pokemons = []
         while len(pokemons) < 6:
@@ -303,7 +363,7 @@ class Player:
                 break
             except:
                continue
-        return cls(nickname, pokemons)
+        return cls(team_name, pokemons)
 
 class Pokemon:
     def __init__(self, pokemoninfo):

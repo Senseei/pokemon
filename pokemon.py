@@ -1,4 +1,4 @@
-from classes import Battle, Player, Move, Pokemon
+from classes import Battle, Player, Move, Pokemon, Team
 import requests
 
 def main():
@@ -27,9 +27,10 @@ def main():
     pokemon1 = Pokemon(pokemon1info)
     # append to the list
     team1.append(pokemon1)
-
+    # creates a team object
+    obj_team1 = Team("team1", team1)
     # finally creates the player with the team
-    player1 = Player("Sensei", team1)
+    player1 = Player("Sensei", teams=[obj_team1], bag=[])
 
     # prints the player's pokemons
     print(player1)
@@ -41,12 +42,8 @@ def main():
     moves = {}
     move1info = requests.get("https://pokeapi.co/api/v2/move/thunder").json()
     moves[move1info["name"]] = Move(move1info)
-    move2info = requests.get("https://pokeapi.co/api/v2/move/thunder-shock").json()
+    move2info = requests.get("https://pokeapi.co/api/v2/move/body-slam").json()
     moves[move2info["name"]] = Move(move2info)
-    move3info = requests.get("https://pokeapi.co/api/v2/move/thunder-punch").json()
-    moves[move3info["name"]] = Move(move3info)
-    move4info = requests.get("https://pokeapi.co/api/v2/move/body-slam").json()
-    moves[move4info["name"]] = Move(move4info)
     level = 100
     pokemon2info.update({"level": level, "current_moves": moves})
     pokemon2 = Pokemon(pokemon2info)
@@ -56,12 +53,16 @@ def main():
     moves = {}
     move1info = requests.get("https://pokeapi.co/api/v2/move/thunder").json()
     moves[move1info["name"]] = Move(move1info)
+    move2info = requests.get("https://pokeapi.co/api/v2/move/ice-beam").json()
+    moves[move2info["name"]] = Move(move2info)
     level = 100
     pokemon2info.update({"level": level, "current_moves": moves})
     pokemon2 = Pokemon(pokemon2info)
     team2.append(pokemon2)
 
-    player2 = Player("Lefty", team2)
+    obj_team2 = Team("team1", team2)
+
+    player2 = Player("Lefty", teams=[obj_team2], bag=[])
     print(player2)
 
     # calls a battle and associates it to a variable

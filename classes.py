@@ -87,7 +87,7 @@ class Battle:
                 return
         match action:
             case "pokemons":
-                print(player.list_pokemons("battle"))
+                self.switch_pokemon(player, back=True)
             case "bag":
                 player.list_bag()
 
@@ -101,7 +101,7 @@ class Battle:
             print(f"{current_player.getActivePokemon().getName()} has fainted!")
             current_player.alive_pokemons -= 1
             if current_player.alive_pokemons > 0:
-                Battle.switch_pokemon(current_player)
+                self.switch_pokemon(current_player)
             else:
                 self.winner = other_player
                 self.loser = current_player
@@ -111,7 +111,7 @@ class Battle:
             print(f"{other_player.getActivePokemon().getName()} has fainted!")
             other_player.alive_pokemons -= 1
             if other_player.alive_pokemons > 0:
-                Battle.switch_pokemon(other_player)
+                self.switch_pokemon(other_player)
             else:
                 self.winner = current_player
                 self.loser = other_player
@@ -139,26 +139,47 @@ class Battle:
         fstring += div
         print(fstring)
 
+    # switches the player's pokemon
+    def switch_pokemon(self, player, back=False):
+        time.sleep(1)
+        print(f"{player.nickname}'s pokemons:")
+        print(player.list_pokemons("battle"))
+        while True:
+            if back:
+                action = input("Select the pokemon.. or type 'back' to go back.. ").lower()
+                for pokemon in player.pokemons:
+                    if action == pokemon.name and pokemon.getHealth("current") > 0:
+                        player.active_pokemon = pokemon
+                        print(f"{player.nickname} chose {pokemon.getName()}!")
+                        return
+                    elif action == pokemon.name and pokemon.getHealth("current") == 0:
+                        print(f"{pokemon.getName()} cannot fight..")
+                if action == "back":
+                    self.queue = sorted([self.player1, self.player2], reverse=True, key=lambda player: player.getActivePokemon().getSpeed("current"))
+                    player.setAction()
+                    self.setActionPriority()
+                    if player == self.player1:
+                        other_player = self.player2
+                    else:
+                        other_player = self.player1
+                    self.execute_action(player, other_player)
+                    return
+            else:
+                pokemon_name = input("Select the pokemon.. ").lower()
+                for pokemon in player.pokemons:
+                    if pokemon_name == pokemon.name and pokemon.getHealth("current") > 0:
+                        player.active_pokemon = pokemon
+                        print(f"{player.nickname} chose {pokemon.getName()}!")
+                        return
+                    elif pokemon_name == pokemon.name and pokemon.getHealth("current") == 0:
+                        print(f"{pokemon.getName()} cannot fight..")
+
     @classmethod
     def setTargets(cls):
         targets = []
         for i in range(1, 17):
             targets.append(requests.get("https://pokeapi.co/api/v2/move-target/" + str(i)).json())
         return targets
-
-    # switches the player's pokemon
-    @classmethod
-    def switch_pokemon(cls, player):
-        time.sleep(1)
-        print(f"{player.nickname}'s pokemons:")
-        print(player.list_pokemons("battle"))
-        while True:
-            pokemon_name = input("Select the pokemon.. ")
-            for pokemon in player.pokemons:
-                if pokemon_name == pokemon.name:
-                    player.active_pokemon = pokemon
-                    break
-            print("Invalid pokemon")
 
     @classmethod
     def start_battle(cls, player1, player2):
@@ -178,6 +199,9 @@ class Player:
         self.alive_pokemons = len(self.pokemons)
         self.nickname = nickname
         self.bag = bag
+
+    def __eq__(self, other):
+        return self.nickname == other.nickname
 
     def __str__(self):
         return f"{self.nickname}'s pokemons:\n" + self.list_pokemons()
@@ -293,8 +317,6 @@ class Pokemon:
         # Pokemon's type relations
         self.damage_relations = Type.setDamageRelations(self.types)
         self.crit_chance = 0.0625
-        self.evasiveness = 1
-        self.accuracy = 1
 
     def __str__(self):
         return f"Lvl {self.level} - {self.getName()}"
@@ -343,10 +365,10 @@ class Pokemon:
         return self.crit_chance
 
     def getAccuracy(self):
-        return self.accuracy
+        return self.stats["accuracy"].current_stat
 
     def getEvasiveness(self):
-        return self.evasiveness
+        return self.stats["evasion"].current_stat
 
     def getName(self):
         return f"{self.name.title()}"
@@ -502,9 +524,9 @@ class Stat:
         }
         self.stat_level += level
         if self.stat_level >= 0:
-            self.current_stat *= (1 + self.stat_level / 2)
+            self.current_stat = self.stat * (1 + self.stat_level / 2)
         else:
-            self.current_stat *= negative_stat_level_table[self.stat_level]
+            self.current_stat = self.stat * negative_stat_level_table[self.stat_level]
 
     # sets the EV points of the current stat, and check if it's valid
     @classmethod
@@ -558,15 +580,16 @@ class Type:
 
     @classmethod
     def check_effectiveness(cls, move, other_pokemon):
+        effectiveness = 1
         for key in other_pokemon.damage_relations:
             if move.type.name in other_pokemon.damage_relations[key]:
                 if key == "double_damage_from":
-                    return 2
+                    effectiveness = 2
                 elif key == "half_damage_from":
-                    return 0.5
+                    effectiveness = 0.5
                 elif key == "no_damage_from":
-                    return 0
-        return 1
+                    effectiveness = 0
+        return effectiveness
 
     @classmethod
     def create_type(cls, type):
@@ -668,6 +691,8 @@ class Move:
             summary["effectiveness"] = "not-effective"
         elif effectiveness == 0:
             summary["effectiveness"] = "does not affect"
+        else:
+            summary["effectiveness"] = "normal"
 
         match move.damage_class:
             case "physical":

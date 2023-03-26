@@ -83,7 +83,8 @@ class Battle:
                 if fainted_pokemons:= self.check_lives():
                     for p in fainted_pokemons:
                         print(f"{p['pokemon'].getName()} has fainted!")
-                        self.switch_pokemon(p["player"])
+                        if not self.check_winner():
+                            self.switch_pokemon(p["player"])
 
                     # checks the pokemon lives and if there is a winner
                     if self.check_winner():

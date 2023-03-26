@@ -1,6 +1,42 @@
 import requests
 import random
 import time
+import os
+import pickle
+
+class CommandLine:
+    @classmethod
+    def check(cls, argv):
+        if len(argv) < 3:
+            print("Insufficient arguments")
+            return False
+        elif len(argv) > 3:
+            print("Too many arguments")
+            return False
+
+        player1 = os.path.splitext(argv[1])
+        player2 = os.path.splitext(argv[2])
+        if player1[1] != ".profile" or player2[1] != ".profile":
+            print("Not a .profile file")
+            return False
+        return True
+
+    @classmethod
+    def getFileProperty(cls, arg, property="name"):
+        if property == "name":
+            file = os.path.splitext(arg)
+            return file[0]
+        elif property == "ext":
+            return file[1]
+
+    @classmethod
+    def file_exists(cls, arg):
+        try:
+            file = open(arg, "rb")
+            file.close()
+            return True
+        except FileNotFoundError:
+            return False
 
 class Battle:
     def __init__(self, player1, player2):
@@ -20,7 +56,9 @@ class Battle:
             self.queue = sorted([self.player1, self.player2], reverse=True, key=lambda player: player.getActivePokemon().getSpeed("current"))
 
             # gets what the players want to do
+            Battle.show_options(self.player1)
             self.player1.setAction()
+            Battle.show_options(self.player2)
             self.player2.setAction()
             time.sleep(1)
             # check if some move has priority
@@ -41,13 +79,25 @@ class Battle:
                 self.show_pokemons()
                 time.sleep(2)
 
-                # checks the pokemon lives and if there is a winner
-                if self.check_winner():
-                    self.in_progress = False
-                    time.sleep(1)
-                    print(f"{self.loser.nickname} is out of pokemons..")
-                    print(f"{self.winner.nickname} is the winner!")
+                # checks if there are any fainted pokemons
+                if fainted_pokemons:= self.check_lives():
+                    for p in fainted_pokemons:
+                        print(f"{p['pokemon'].getName()} has fainted!")
+                        self.switch_pokemon(p["player"])
+
+                    # checks the pokemon lives and if there is a winner
+                    if self.check_winner():
+                        self.in_progress = False
+                        time.sleep(1)
+                        if self.winner:
+                            print(f"{self.loser.nickname} is out of pokemons..")
+                            print(f"{self.winner.nickname} is the winner!")
+                        else:
+                            print(f"Both players are out of pokemons!")
+                            print(f"It's a draw!")
+                        break
                     break
+
 
     # check if the player's action has priority
     def setActionPriority(self):
@@ -91,31 +141,30 @@ class Battle:
             case "bag":
                 player.list_bag()
 
+    # checks if the pokemons are still alive
+    def check_lives(self):
+        fainted_pokemons = []
+        if self.player1.getActivePokemon().getHealth(stat="current") <= 0:
+            fainted_pokemons.append({"player": self.player1, "pokemon": self.player1.getActivePokemon()})
+            self.player1.updateAlivePokemonsFromTeam(-1)
+        if self.player2.getActivePokemon().getHealth(stat="current") <= 0:
+            fainted_pokemons.append({"player": self.player2, "pokemon": self.player2.getActivePokemon()})
+            self.player2.updateAlivePokemonsFromTeam(-1)
+        return fainted_pokemons
+
     # checks if the pokemons are still alive and switches the player active pokemon, or returns a winner if there is no more alive pokemons in the team
     def check_winner(self):
-        current_player = self.queue[0]
-        other_player = self.queue[1]
-
-        if current_player.getActivePokemon().getHealth("current") <= 0:
-            time.sleep(1)
-            print(f"{current_player.getActivePokemon().getName()} has fainted!")
-            current_player.updateAlivePokemonsFromTeam(-1)
-            if current_player.getAlivePokemonsFromTeam() > 0:
-                self.switch_pokemon(current_player)
-            else:
-                self.winner = other_player
-                self.loser = current_player
-                return True
-        if other_player.getActivePokemon().getHealth("current") <= 0:
-            time.sleep(1)
-            print(f"{other_player.getActivePokemon().getName()} has fainted!")
-            other_player.updateAlivePokemonsFromTeam(-1)
-            if other_player.getAlivePokemonsFromTeam() > 0:
-                self.switch_pokemon(other_player)
-            else:
-                self.winner = current_player
-                self.loser = other_player
-                return True
+        if self.player1.getAlivePokemonsFromTeam() == 0 and self.player2.getAlivePokemonsFromTeam() == 0:
+            return True
+        if self.player1.getAlivePokemonsFromTeam() == 0:
+            self.winner = player2
+            self.loser = player1
+            return True
+        if self.player2.getAlivePokemonsFromTeam() == 0:
+            self.winner = player1
+            self.loser = player2
+            return True
+        return False
 
     def show_pokemons(self):
         fstring = ""
@@ -170,9 +219,28 @@ class Battle:
                     if pokemon_name == pokemon.name and pokemon.getHealth("current") > 0:
                         player.active_pokemon = pokemon
                         print(f"{player.nickname} chose {pokemon.getName()}!")
+
                         return
                     elif pokemon_name == pokemon.name and pokemon.getHealth("current") == 0:
                         print(f"{pokemon.getName()} cannot fight..")
+
+    def show_players(self):
+        print(f"{self.player1}")
+        time.sleep(1)
+        print("Versus\n")
+        time.sleep(1)
+        print(f"{self.player2}")
+
+    @classmethod
+    def show_options(cls, player):
+        fstring = "| "
+        for move in player.getActivePokemon().getMoves():
+            fstring += f"[{move.name}] "
+        for option in ["pokemons", "bag"]:
+            fstring += f"[{option}] "
+        fstring += "|\n"
+        table_length = len(fstring) - 1
+        print(f"{'-' * table_length}\n{fstring}{'-' * table_length}")
 
     @classmethod
     def setTargets(cls):
@@ -184,6 +252,7 @@ class Battle:
     @classmethod
     def start_battle(cls, player1, player2):
         battle = cls(player1, player2)
+        battle.show_players()
         battle.battle()
         return battle
 
@@ -306,6 +375,13 @@ class Player:
             if action not in actions:
                 print("Invalid action")
                 continue
+            noPP = False
+            for move in self.getActivePokemon().getMoves():
+                if move.name == action and move.getPP() == 0:
+                    print("This movement is out of PP..")
+                    noPP = True
+            if noPP:
+                continue
             self.action = action
             break
 
@@ -327,6 +403,10 @@ class Player:
                 self.teams.append(Team.create_team(team_name))
                 return
 
+    def save(self, filename):
+        with open(filename, 'wb') as file:
+            pickle.dump(self, file)
+
     # Creates a new player
     @classmethod
     def create_player(cls):
@@ -342,6 +422,16 @@ class Player:
         teams.append(Team.create_team(team_name))
         bag = []
         return cls(nickname, teams, bag)
+
+    @classmethod
+    def load_profile(cls, profile):
+        try:
+            with open(profile, "rb") as file:
+                player = pickle.load(file)
+        except FileNotFoundError:
+            print("This profile does not exist")
+        else:
+            return player
 
 
 
@@ -715,7 +805,10 @@ class Move:
 
     @classmethod
     def execute_move(cls, move, pokemon, other_pokemon):
-        hit_chance = move.getAccuracy() * (pokemon.getAccuracy() / other_pokemon.getEvasiveness())
+        if not move.getAccuracy():
+            hit_chance = 100
+        else:
+            hit_chance = move.getAccuracy() * (pokemon.getAccuracy() / other_pokemon.getEvasiveness())
         if random.randint(1, 100) > hit_chance:
             move.decreasePP(1)
             print(f"{other_pokemon.getName()} avoided the attack!")
@@ -766,8 +859,8 @@ class Move:
             stab = 1.5
         critical = 1
         summary["critical"] = False
-        if random.randint(1, 10000) / 10000 <= pokemon.getCritChance():
-            critical = 1.5
+        if random.randint(1, 10000) / 10000 <= pokemon.getCritChance() and effectiveness != 0:
+            critical = 2
             summary["critical"] = True
         other = 1
         summary["damage"] = round(((((2*pokemon.level/5+2)*atkstat*move.power/defstat)/50)+2)*stab*effectiveness*critical*other*(80/100))

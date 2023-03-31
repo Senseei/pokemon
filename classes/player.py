@@ -1,5 +1,6 @@
 import pickle
 from classes.team import Team
+from classes.globals import PROFILES_PATH
 
 class Player:
     def __init__(self, nickname, teams=[], bag=[]):
@@ -147,8 +148,9 @@ class Player:
                 self.teams.append(Team.create_team(team_name))
                 return
 
-    def save(self, filename):
-        with open(filename, 'wb') as file:
+    def save(self, filename, path=PROFILES_PATH):
+        path += filename
+        with open(path, 'wb') as file:
             pickle.dump(self, file)
 
     # Creates a new player
@@ -163,14 +165,15 @@ class Player:
             team_name = input("Insert your team's name: ")
             if team_name:
                 break
-        teams.append(Team.create_team(team_name))
+        teams.append(Team.create_team(team_name, nickname))
         bag = []
         return cls(nickname, teams, bag)
 
     @classmethod
-    def load_profile(cls, profile):
+    def load_profile(cls, profile, path=PROFILES_PATH):
+        path += profile
         try:
-            with open(profile, "rb") as file:
+            with open(path, "rb") as file:
                 player = pickle.load(file)
         except FileNotFoundError:
             print("This profile does not exist")

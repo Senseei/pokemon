@@ -6,12 +6,15 @@ from classes.move import Move
 class Pokemon:
     def __init__(self, pokemoninfo):
         self.properties = pokemoninfo
+        self.owner = pokemoninfo["owner"]
         self.name = self.properties["name"]
         self.types = self.setTypes(self.properties["types"])
         self.level = int(self.properties["level"])
         self.moves = self.properties["current_moves"]
         # Pokemon's stats
         self.stats = Pokemon.defineStats(pokemoninfo, self.level)
+        # Pokemon's current status
+        self.status = []
         # Pokemon's type relations
         self.damage_relations = Type.setDamageRelations(self.types)
         self.crit_chance = 0.0625
@@ -103,6 +106,14 @@ class Pokemon:
         if self.getHealth("current") < 0:
             self.stats["hp"].current_stat = 0
 
+    def updateStatLevel(self, stat, level):
+        self.stats[stat].change_stat(level)
+
+    def removeStatus(self, status):
+        for i in range(len(self.status)):
+            if status == self.status[i].name:
+                self.status.remove(self.status[i])
+
     @classmethod
     def defineStats(cls, pokemoninfo, pokemonlevel):
         stats = {}
@@ -115,7 +126,7 @@ class Pokemon:
 
     # Creates a pokemon
     @classmethod
-    def create_pokemon(cls):
+    def create_pokemon(cls, owner):
         pokemon = input("Pokemon's name: ").lower()
         # checks if the pokemon exists. If it exists, get all the information of the pokemon
         if response:= requests.get("https://pokeapi.co/api/v2/pokemon/" + pokemon):
@@ -134,17 +145,21 @@ class Pokemon:
             # sets the moves of the pokemons
             moves = {}
             while len(moves) < 4:
-                if move:= Move.create_move():
-                    # if the move is valid, it will check if the pokemon in fact can learn the move
-                    if cls.is_learnable(move, pokemon) and move.name not in moves:
-                        moves[move.name] = move
-                    # checks if the pokemon has already learned the move
-                    elif move.name in moves:
-                        print(f"{pokemon.title()} has already learned this movement")
+                try:
+                    if move:= Move.create_move():
+                        # if the move is valid, it will check if the pokemon in fact can learn the move
+                        if cls.is_learnable(move, pokemon) and move.name not in moves:
+                            moves[move.name] = move
+                        # checks if the pokemon has already learned the move
+                        elif move.name in moves:
+                            print(f"{pokemon.title()} has already learned this movement")
+                        else:
+                            print(f"{pokemon.title()} cannot learn this movement")
                     else:
-                        print(f"{pokemon.title()} cannot learn this movement")
-                else:
-                    print("Please, insert a valid movement ID")
+                        print("Please, insert a valid movement ID")
+                except EOFError:
+                    print()
+                    break
 
             # gives the option to set other properties of the pokemon
             remaining_evs = 504
@@ -161,7 +176,7 @@ class Pokemon:
                         print("Not enough EVs..")
 
             # updates the pokemon info
-            pokemoninfo.update({"level": level, "current_moves": moves})
+            pokemoninfo.update({"level": level, "current_moves": moves, "owner": owner})
             # returns the pokemon object
             return cls(pokemoninfo)
         else:

@@ -1,5 +1,6 @@
 import time
 import requests
+import random
 from classes.move import Move
 
 class Battle:
@@ -30,7 +31,7 @@ class Battle:
 
             # starts the queue
             for current_player in self.queue:
-                print(f"It's {current_player.getActivePokemon().name.title()}'s turn!")
+                print(f"It's {current_player.nickname}'s {current_player.getActivePokemon().getName()}'s turn!")
                 self.turns += 1
 
                 # defines the current_player and the other to execute their actions
@@ -39,7 +40,9 @@ class Battle:
                 else:
                     other_player = self.player1
 
-                self.execute_action(current_player, other_player)
+                # checks and actives the current status of the pokemon. Paralyze, for example, and if so, returns True or False if the player will play on this turn, or not
+                if self.check_pokemon_status(current_player.getActivePokemon(), other_player.getActivePokemon()) or current_player.action in ["bag", "pokemons"]:
+                    self.execute_action(current_player, other_player)
                 self.show_pokemons()
                 time.sleep(2)
 
@@ -88,6 +91,35 @@ class Battle:
         elif self.player2.action == "pokemons":
             self.queue = [self.player2, self.player1]
         return
+
+    def check_pokemon_status(self, pokemon, other_pokemon):
+        will_play = True
+        for status in pokemon.status:
+            success_chance = random.randint(1, 10000) / 10000
+            if status.name == "badly poison":
+                damage = status.damage * pokemon.getHealth() * status.damage_multiplier
+                if damage > status.max_damage:
+                    damage = status.max_damage
+                pokemon.decreaseHealth(damage)
+                print(f"{status.toString('during')}")
+                status.damage_multiplier += 1
+            elif status.name == "sleep":
+                if success_chance > status.effect_chance():
+                    pokemon.removeStatus("sleep")
+                    print(f"{pokemon.owner}'s {pokemon.getName()} woke up!")
+                else:
+                    print(f"{status.toString('during')}")
+                    will_play = False
+            elif status.name == "freeze" or status.name == "paralyze":
+                if success_chance <= status.effect_chance:
+                    print(f"{status.toString('during')}")
+                    will_play = False
+            else:
+                if success_chance <= status.effect_chance():
+                    pokemon.decreaseHealth(status.damage * pokemon.getHealth() * status.damage_multiplier)
+                    print(f"{status.toString('during')}")
+        return will_play
+
 
     # executes the player's action, and calls its respective method
     def execute_action(self, player, other_player):

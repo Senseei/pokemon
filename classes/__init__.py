@@ -6,5 +6,3 @@ from classes.pokemon import Pokemon
 from classes.stat import Stat
 from classes.team import Team
 from classes.type import Type
-
-PROFILES_PATH = "./profiles/"

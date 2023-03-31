@@ -7,12 +7,12 @@ class Team:
         self.alive_pokemons = len(self.pokemons)
 
     @classmethod
-    def create_team(cls, team_name):
+    def create_team(cls, team_name, owner):
         # creates an empty list of pokemons with max length 6
         pokemons = []
         while len(pokemons) < 6:
             try:
-                pokemons.append(Pokemon.create_pokemon())
+                pokemons.append(Pokemon.create_pokemon(owner))
             except EOFError:
                 print("\n")
                 break

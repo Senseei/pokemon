@@ -104,7 +104,7 @@ class Battle:
                 print(f"{status.toString('during')}")
                 status.damage_multiplier += 1
             elif status.name == "sleep":
-                if success_chance > status.effect_chance():
+                if success_chance > status.effect_chance:
                     pokemon.removeStatus("sleep")
                     print(f"{pokemon.owner}'s {pokemon.getName()} woke up!")
                 else:
@@ -115,7 +115,7 @@ class Battle:
                     print(f"{status.toString('during')}")
                     will_play = False
             else:
-                if success_chance <= status.effect_chance():
+                if success_chance <= status.effect_chance:
                     pokemon.decreaseHealth(status.damage * pokemon.getHealth() * status.damage_multiplier)
                     print(f"{status.toString('during')}")
         return will_play

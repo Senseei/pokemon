@@ -54,6 +54,9 @@ class Status:
         self.max_damage = statusinfo["max-damage"]
         self.strings = {"when_applied": statusinfo["when_applied"], "during": statusinfo["during"]}
 
+    def __eq__(self, other):
+        return self.name == other.name
+
     def toString(self, key="when_applied"):
         return f"{self.pokemon.owner}'s {self.pokemon.getName()} {self.strings[key]}"
 

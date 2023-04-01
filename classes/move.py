@@ -29,10 +29,11 @@ class Move:
         for status_effect in status:
             for effect in self.effects:
                 if status_effect in effect.lower():
-                    if not self.getEffectChance() or random.randint(1, 100) <= self.getEffectChance():
+                    if (not self.getEffectChance() or random.randint(1, 100) <= self.getEffectChance()):
                         status = Status.setStatus(status_effect, pokemon)
-                        pokemon.status.append(status)
-                        print(f"{status.toString()}")
+                        if status not in pokemon.status:
+                            pokemon.status.append(status)
+                            print(f"{status.toString()}")
         if not self.getEffectChance() or random.randint(1, 100) <= self.getEffectChance():
             for stat in self.stat_changes:
                 pokemon.updateStatLevel(stat, self.stat_changes[stat]["change"])
